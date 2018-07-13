@@ -31,28 +31,40 @@ def parse_bill(agenda_row, agenda_date)
   bill
 end
 
+def tableread(doc, tablename) 
+  items = []
+  agenda_date = nil
+  doc.css("section#main-content table.#{tablename} tbody td").each do |row|
+    row.css('p strong').each do |head|
+      date_match = head.text.match(/\d+:\d+ \w\w, \w+ [\d-]+, 20\d\d/)
+      if date_match
+        clean_date = date_match[0].gsub(/-\d+/, '')
+        agenda_date = Time.parse(clean_date)
+      end
+    end
+
+
+    if agenda_date
+      p = row.css('p').first
+      if p && (p.css('strong>a').length > 0 || p.css('a>strong').length > 0)
+        bill = parse_bill(p, agenda_date)
+        items << bill
+      end
+    end
+  end
+  items
+end
+
 url = URL_HOST + '/auditor/index.cfm?c=26997'
+STDERR.puts url
 doc = Nokogiri::HTML(open(url).read)
 
 items = []
-agenda_date = nil
-doc.css('section#main-content table.bluetable tbody td').each do |row|
-  row.css('p>strong').each do |head|
-    date_match = head.text.match(/\d+:\d+ \w\w, \w+ [\d-]+, 20\d\d/)
-    if date_match
-      clean_date = date_match[0].gsub(/-\d+/, '')
-      agenda_date = Time.parse(clean_date)
-    end
-  end
-
-
-  if agenda_date
-    p = row.css('p').first
-    if p && (p.css('strong>a').length > 0 || p.css('a>strong').length > 0)
-      bill = parse_bill(p, agenda_date)
-      items << bill
-    end
-  end
+doc.css("section#main-content table").each do |row|
+  classTableName = row.attributes['class']
+  tableitems = tableread(doc, classTableName )
+  STDERR.puts "parsing table.#{classTableName} -> #{tableitems.length} items found"
+  items += tableitems
 end
 
 agenda = {
@@ -60,7 +72,6 @@ agenda = {
   :scrape_date => Time.now,
   :items => items
 }
-STDERR.puts url
 STDERR.puts items.map{ |x| "#{x[:number]} #{x[:session]}" }
 
 puts JSON.pretty_generate(agenda)
