@@ -16,14 +16,13 @@ end
 
 def make_title(item)
   #["TOO_LONG", "this is too long (max: 300)", "title"]
-  title = "[#{item['number']}] #{item['title']}"[0,300]
+  title = "#{item['title']} [#{item['number']}]"[0,300]
 end
 
 def make_text(item)
-  text = "Session: #{item['session']}\n\n"+
-         "##{item['number']}\n\n" +
-         "#{item['title']}\n\n" +
-         "PDF: #{item['link']}\n\n"
+  emergency = item['emergency'] ? "(this item takes effect immediately if passed)" : ""
+  "Session #{item['session']} Item \\##{item['number']}\n\n" +
+  emergency
 end
 
 def api(path, token, params)

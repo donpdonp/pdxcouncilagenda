@@ -9,8 +9,10 @@ URL_HOST = 'https://www.portlandoregon.gov'
 
 def parse_bill(agenda_row, agenda_date)
   bill = {}
-  link = agenda_row.css('a')[0]
-  number_match = link.text.match(/(\*)?(\d+)/)
+  link = agenda_row.css('strong')[0]
+  link_text = link.text
+  number_match = link_text.match(/^[[:space:]]*(\*)?(\d+)/)
+  return if !number_match
   emergency = !number_match.captures[0].nil?
   number = number_match.captures[1]
   link.remove
@@ -23,7 +25,7 @@ def parse_bill(agenda_row, agenda_date)
     bill.merge!(:time_certain => item_date)
   end
 
-  bill.merge!(:link => URL_HOST + link['href'],
+  bill.merge!(:link => URL_HOST ,
               :number => number,
               :session => agenda_date,
               :title => title)
@@ -46,9 +48,9 @@ def tableread(doc, tablename)
 
     if agenda_date
       p = row.css('p').first
-      if p && (p.css('strong>a').length > 0 || p.css('a>strong').length > 0)
+      if p && (p.css('strong').length > 0)
         bill = parse_bill(p, agenda_date)
-        items << bill
+        items << bill if bill
       end
     end
   end
@@ -72,6 +74,4 @@ agenda = {
   :scrape_date => Time.now,
   :items => items
 }
-STDERR.puts items.map{ |x| "#{x[:number]} #{x[:session]}" }
-
 puts JSON.pretty_generate(agenda)
