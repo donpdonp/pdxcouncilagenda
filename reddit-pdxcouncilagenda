@@ -16,12 +16,14 @@ end
 
 def make_title(item)
   #["TOO_LONG", "this is too long (max: 300)", "title"]
-  title = "#{item['title']} [#{item['number']}]"[0,300]
+  title = item['title'].match(/([^(]+)/).captures.first
+  title = title[0,294]+" [#{item['number']}]"
 end
 
 def make_text(item)
   emergency = item['emergency'] ? "(this item takes effect immediately if passed)" : ""
   "Session #{item['session']} Item \\##{item['number']}\n\n" +
+  item['title']+"\n\n" +
   emergency
 end
 
@@ -46,6 +48,22 @@ def add_story(token, post)
   #{"json"=>{"errors"=>[], "data"=>{"url"=>"https://oauth.reddit.com/r/pdxcouncilagenda/comments/274cvy/portland_city_council_agenda/", "id"=>"274cvy", "name"=>"t3_274cvy"}}}
 end
 
+
+def load_posts
+  posts = []
+  data = HTTParty.get("http://www.reddit.com/r/pdxcouncilagenda/new.json?limit=#{@reddit['limit']}").parsed_response
+  if data['error']
+    puts data['message']
+  else
+    posts = data['data']['children']
+    posts.each do |p| 
+      match = p['data']['title'].match(/\[(\d+)\]/)
+      p['data']['agenda_number'] = match.captures.first if match
+    end
+  end
+  posts
+end
+
 @reddit = JSON.parse(File.read("reddit.json"))
 clean = ARGV[0] == 'clean' if ARGV[0]
 do_post = ARGV[0] == 'post' if ARGV[0]
@@ -53,19 +71,13 @@ do_post = ARGV[0] == 'post' if ARGV[0]
 puts "clean mode ON" if clean
 puts "LIVE POST" if do_post
 
-# posts
-puts "loading reddit posts"
-posts = HTTParty.get("http://www.reddit.com/r/pdxcouncilagenda/new.json?limit=#{@reddit['limit']}").parsed_response
-posts = posts['data']['children']
+puts "loading r/pdxcouncilagenda posts"
+posts = load_posts
 puts "loaded #{posts.length} reddit posts"
-posts.each do |p| 
-  match = p['data']['title'].match(/\[(\d+)\]/)
-  p['data']['agenda_number'] = match.captures.first if match
-end
 story_ids = posts.map{|p|p['data']['agenda_number']}.compact
 
 # agenda
-puts "loading council agenda"
+puts "loading scraped council agenda items"
 agenda = HTTParty.get('http://donp.org/pdxapi/pdx-council-agenda.json').parsed_response
 puts "loaded #{agenda['items'].size} agenda items"
 unposted = agenda['items'].reject{|item| story_ids.include?(item['number'])}
@@ -90,5 +102,4 @@ if do_post
     add_story(token, post)
   end
 end
-
 
