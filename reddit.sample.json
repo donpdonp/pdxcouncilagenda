@@ -1,0 +1,9 @@
+{
+  "auth" : { "username" : "redditbot",
+             "password" : "pass",
+             "httpuser" : "abc1234",
+             "httppass" : "pass4321xyz"
+            },
+  "limit" : 100
+}
+
