@@ -53,7 +53,7 @@ def load_posts
   posts = []
   data = HTTParty.get("http://www.reddit.com/r/pdxcouncilagenda/new.json?limit=#{@reddit['limit']}").parsed_response
   if data['error']
-    puts data['message']
+    puts "reddit error: #{data['message']}"
   else
     posts = data['data']['children']
     posts.each do |p| 
@@ -82,6 +82,11 @@ agenda = HTTParty.get('http://donp.org/pdxapi/pdx-council-agenda.json').parsed_r
 puts "loaded #{agenda['items'].size} agenda items"
 unposted = agenda['items'].reject{|item| story_ids.include?(item['number'])}
 puts "#{unposted.size} unposted #{unposted.map{|p|p['number']}.sort}"
+
+if story_ids.empty?
+  puts "reddit load is empty. aborting early."
+  exit
+end
 
 token = access_token()
 puts "Reddit access token #{token}"

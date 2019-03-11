@@ -7,6 +7,23 @@ require 'time'
 
 URL_HOST = 'https://www.portlandoregon.gov'
 
+def assume_date(tablename)
+  dayword =  case tablename
+  when 'bluetable'
+    'wednesday'
+  when 'greentable'
+    'wednesday'
+  when 'goldtable'
+    'thursday'
+  end
+  t = Time.now
+  7.times do 
+    break if t.public_send(dayword+'?')
+    t += 60*60*24
+  end
+  t
+end
+
 def parse_bill(agenda_row, agenda_date)
   bill = {}
   link = agenda_row.css('strong')[0]
@@ -36,15 +53,19 @@ end
 def tableread(doc, tablename) 
   items = []
   agenda_date = nil
-  doc.css("section#main-content table.#{tablename} tbody td").each do |row|
-    row.css('p strong').each do |head|
-      date_match = head.text.match(/\d+:\d+ \w\w, \w+ [\d-]+, 20\d\d/)
-      if date_match
-        clean_date = date_match[0].gsub(/-\d+/, '')
-        agenda_date = Time.parse(clean_date)
+  doc.css("section#main-content table.#{tablename} tbody tr").each do |row|
+    row.css('td').each do |head|
+      unless agenda_date
+        date_match = head.text.match(/\d+:\d+ \w\w, \w+ [\d-]+, 20\d\d/)
+        if date_match
+          clean_date = date_match[0].gsub(/-\d+/, '')
+          agenda_date = Time.parse(clean_date)
+        else
+          agenda_date = assume_date(tablename)
+          STDERR.puts "Warning: no date found for #{tablename}. using #{agenda_date}"
+        end
       end
     end
-
 
     if agenda_date
       p = row.css('p').first
@@ -64,7 +85,7 @@ doc = Nokogiri::HTML(open(url).read)
 items = []
 doc.css("section#main-content table").each do |row|
   classTableName = row.attributes['class']
-  tableitems = tableread(doc, classTableName )
+  tableitems = tableread(doc, classTableName.to_s)
   STDERR.puts "parsing table.#{classTableName} -> #{tableitems.length} items found"
   items += tableitems
 end
