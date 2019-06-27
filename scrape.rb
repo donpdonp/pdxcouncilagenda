@@ -5,8 +5,6 @@ require 'open-uri'
 require 'json'
 require 'time'
 
-URL_HOST = 'https://www.portlandoregon.gov'
-
 def assume_date(tablename)
   dayword =  case tablename
   when 'bluetable'
@@ -24,12 +22,13 @@ def assume_date(tablename)
   t
 end
 
-def parse_bill(agenda_row, agenda_date)
+def parse_bill(agenda_row, agenda_date, uri)
   bill = {}
   link = agenda_row.css('strong')[0]
   link_text = link.text
   number_match = link_text.match(/^[[:space:]]*(\*)?(\d+)/)
   return if !number_match
+  citypdf = agenda_row.css('strong a')[0]
   emergency = !number_match.captures[0].nil?
   number = number_match.captures[1]
   link.remove
@@ -42,7 +41,7 @@ def parse_bill(agenda_row, agenda_date)
     bill.merge!(:time_certain => item_date)
   end
 
-  bill.merge!(:link => URL_HOST ,
+  bill.merge!(:link => uri.host + (citypdf ? citypdf.attributes['href'] : ""),
               :number => number,
               :session => agenda_date,
               :title => title)
@@ -50,10 +49,10 @@ def parse_bill(agenda_row, agenda_date)
   bill
 end
 
-def tableread(doc, tablename) 
+def tableread(tablerow, uri) 
   items = []
   agenda_date = nil
-  doc.css("section#main-content table.#{tablename} tbody tr").each do |row|
+  tablerow.css("tbody tr").each do |row|
     row.css('td').each do |head|
       unless agenda_date
         date_match = head.text.match(/\d+:\d+ \w\w, \w+ [\d-]+, 20\d\d/)
@@ -70,7 +69,7 @@ def tableread(doc, tablename)
     if agenda_date
       p = row.css('p').first
       if p && (p.css('strong').length > 0)
-        bill = parse_bill(p, agenda_date)
+        bill = parse_bill(p, agenda_date, uri)
         items << bill if bill
       end
     end
@@ -78,14 +77,15 @@ def tableread(doc, tablename)
   items
 end
 
-url = URL_HOST + '/auditor/index.cfm?c=26997'
-STDERR.puts url
+url = ARGV[0] || 'https://www.portlandoregon.gov/auditor/index.cfm?c=26997'
+uri = URI::parse(url)
+STDERR.puts uri
 doc = Nokogiri::HTML(open(url).read)
 
 items = []
 doc.css("section#main-content table").each do |row|
   classTableName = row.attributes['class']
-  tableitems = tableread(doc, classTableName.to_s)
+  tableitems = tableread(row, uri)
   STDERR.puts "parsing table.#{classTableName} -> #{tableitems.length} items found"
   items += tableitems
 end
