@@ -24,34 +24,27 @@ end
 
 def parse_bill(agenda_row, agenda_date, uri)
   bill = {}
-  link = agenda_row.css('strong')[0]
-  link_text = link.text
-  number_match = link_text.match(/^[[:space:]]*(\*)?(\d+)/)
-  return if !number_match
-  citypdf = agenda_row.css('strong a')[0]
-  emergency = !number_match.captures[0].nil?
-  number = number_match.captures[1]
-  link.remove
-  title = agenda_row.text.gsub(/^[[:space:]]+/,'')
-
-  time_certain_match = title.match(/^(TIME.CERTAIN:.(\d+:\d+.\w\w).)/)
-  if time_certain_match
-    item_date = Time.parse("#{agenda_date.to_date} #{time_certain_match[2]}")
-    title = title[time_certain_match[1].length + 2, title.length]
+  title = agenda_row.text.gsub(/[[:space:]]/, ' ').strip #replace non-breaking spaces
+  agenda_number_match = title.match(/^(\s*(\*)?(\d+)(\s+TIME.CERTAIN:.(\d+:\d+.\w\w).)?)/)
+  agenda_number = agenda_number_match[3]
+  emergency = !!agenda_number_match[2]
+  if agenda_number_match[5]
+    item_date = Time.parse("#{agenda_date.to_date} #{agenda_number_match[5]}")
     bill.merge!(:time_certain => item_date)
   end
+  title = title[agenda_number_match[1].length + 2, title.length]
 
-  bill.merge!(:link => uri.host + (citypdf ? citypdf.attributes['href'] : ""),
-              :number => number,
+  bill.merge!( :number => agenda_number,
               :session => agenda_date,
               :title => title)
+  citypdf = agenda_row.css('strong a')[0]
+  bill.merge!(:link => "https://#{uri.host}/#{citypdf.attributes['href']}") if citypdf
   bill.merge!({:emergency => true}) if emergency
   bill
 end
 
-def tableread(tablerow, uri) 
+def tableread(tablerow, uri, agenda_date) 
   items = []
-  agenda_date = nil
   tablerow.css("tbody tr").each do |row|
     row.css('td').each do |head|
       unless agenda_date
@@ -60,8 +53,8 @@ def tableread(tablerow, uri)
           clean_date = date_match[0].gsub(/-\d+/, '')
           agenda_date = Time.parse(clean_date)
         else
-          agenda_date = assume_date(tablename)
-          STDERR.puts "Warning: no date found for #{tablename}. using #{agenda_date}"
+          #agenda_date = assume_date(tablename)
+          #STDERR.puts "parse warning: table row header #{agenda_date.inspect} has no parsable date"
         end
       end
     end
@@ -77,15 +70,32 @@ def tableread(tablerow, uri)
   items
 end
 
+def datefind(text)
+  match = text.match(/(\w+ \d+)([-\d]+)?(, 20\d\d)/)
+  if match
+    month_day = "#{match[1]}#{match[3]}"
+    Date.parse(month_day)
+  end
+end
+
 url = ARGV[0] || 'https://www.portlandoregon.gov/auditor/index.cfm?c=26997'
 uri = URI::parse(url)
 STDERR.puts uri
-doc = Nokogiri::HTML(open(url).read)
+doc = Nokogiri::HTML(URI.open(url).read)
+agenda_date = nil
+
+doc.css("h2.content-center").each do |row|
+  agenda_date ||= datefind(row.text)
+end
+STDERR.puts "Agenda Date: #{agenda_date}"
 
 items = []
 doc.css("section#main-content table").each do |row|
+  header_text = row.css('tr:first-child h2').text
+  STDERR.puts "Section: #{header_text}"
+  header_date = datefind(header_text)
   classTableName = row.attributes['class']
-  tableitems = tableread(row, uri)
+  tableitems = tableread(row, uri, header_date)
   STDERR.puts "parsing table.#{classTableName} -> #{tableitems.length} items found"
   items += tableitems
 end

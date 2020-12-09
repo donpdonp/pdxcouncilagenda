@@ -4,6 +4,7 @@ require "httparty"
 require 'json'
 
 def access_token
+  puts "access_token"
   HTTParty.post('https://ssl.reddit.com/api/v1/access_token',
               {:body => ["grant_type=password",
                          "username=#{@reddit['auth']['username']}",
@@ -51,7 +52,11 @@ end
 
 def load_posts
   posts = []
-  data = HTTParty.get("http://www.reddit.com/r/pdxcouncilagenda/new.json?limit=#{@reddit['limit']}").parsed_response
+  url = "https://www.reddit.com/r/pdxcouncilagenda/new.json?limit=#{@reddit['limit']}"
+  puts url
+  data = HTTParty.get(url, {
+               :headers => {"User-Agent" => "pdxcitycouncil-scraper"}
+           }).parsed_response
   if data['error']
     puts "reddit error: #{data['message']}"
   else
