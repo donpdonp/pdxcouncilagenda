@@ -17,18 +17,33 @@ def parse_bill(agenda_row)
     bill['number'] = number
     break
   end
-  agenda_row.css('div.council-document__title').each do |id|
-    parts = id.text.split("\n")
-    title = parts[0].strip
+  agenda_row.css('div.council-document__title').each do |node|
+    parts = node.text.split("\n")
+    title = parts[0].strip.delete_prefix("*")
     bill['title'] = title
     STDERR.puts("title #{title}")
-    dept = parts[1].strip
-    STDERR.puts("dept #{dept}")
-    path = id.css('a').attr('href')
+    kind = parts[1].strip.delete_prefix("(").delete_suffix(")")
+    STDERR.puts("kind #{kind}")
+    bill['kind'] = kind
+    path = node.css('a').attr('href')
     link = "https://#{Uri.host}#{path}"
     bill['link'] = link
     STDERR.puts("link #{link}")
   end
+  agenda_row.css('div.field--name-field-agenda-item-disposition div.field__item').each do |node|
+    bill['disposition'] = node.text
+  end
+  agenda_row.css('div.field--name-field-bureau div.field__item').each do |node|
+    bill['bureau'] = node.text
+  end
+  votes = agenda_row.css('div.field--name-field-votes div.field__item').map do |node| 
+    parts = node.text.split(" ").map{|n| n.strip}
+    title = parts.shift
+    vote = parts.pop
+    { :title => title, :name => parts.join(" "), :vote => vote }
+  end
+  STDERR.puts(votes)
+
   # bill.merge!(:time_certain => item_date)
   # bill.merge!(:link => "https://#{uri.host}/#{citypdf.attributes['href']}") if citypdf
   # bill.merge!({:emergency => true}) if emergency
@@ -40,7 +55,7 @@ def tableread(tablerow, agenda_date)
   tablerow.css("div.view-admin-agenda-items").each do |row|
     row.css('div.relation--type-agenda-item').each do |item|
         bill = parse_bill(item)
-        bill['session'] = Time.parse(agenda_date).localtime
+        bill['session'] = Time.parse(agenda_date).strftime("%Y-%m-%d %-l:%M%p")
         items << bill if bill
     end
   end

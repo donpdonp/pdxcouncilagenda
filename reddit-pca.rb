@@ -23,9 +23,8 @@ end
 
 def make_text(item)
   emergency = item['emergency'] ? "(this item takes effect immediately if passed)" : ""
-  "Session #{item['session']} Item \\##{item['number']}\n\n" +
-  item['title']+"\n\n" +
-  emergency
+  "Session #{item['session']} Item \\##{item['number']}\nBureau: #{item['bureau']}" + "\n\n" +
+  item['title'] + "\n\n" + emergency + "\n\n" + item['link'] + "\n"
 end
 
 def api(path, token, params)
@@ -34,6 +33,8 @@ def api(path, token, params)
                                'Authorization' => "bearer #{token}",
                                'User-Agent' => 'pdxcitycouncil-scraper'},
                  :query => params })
+    puts "api success"
+    return
 end
 
 def add_story(token, post)
