@@ -55,7 +55,7 @@ def tableread(tablerow, agenda_date)
   tablerow.css("div.view-admin-agenda-items").each do |row|
     row.css('div.relation--type-agenda-item').each do |item|
         bill = parse_bill(item)
-        bill['session'] = Time.parse(agenda_date).strftime("%Y-%m-%d %-l:%M%p")
+        bill['session'] = Time.parse(agenda_date).localtime.strftime("%Y-%m-%d %-l:%M%p")
         items << bill if bill
     end
   end
