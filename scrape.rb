@@ -13,7 +13,6 @@ def parse_bill(agenda_row)
   bill = {}
   agenda_row.css('h4').each do |id|
     number = id.text.strip
-    STDERR.puts("id #{number}")
     bill['number'] = number
     break
   end
@@ -21,14 +20,11 @@ def parse_bill(agenda_row)
     parts = node.text.split("\n")
     title = parts[0].strip.delete_prefix("*")
     bill['title'] = title
-    STDERR.puts("title #{title}")
     kind = parts[1].strip.delete_prefix("(").delete_suffix(")")
-    STDERR.puts("kind #{kind}")
     bill['kind'] = kind
     path = node.css('a').attr('href')
     link = "https://#{Uri.host}#{path}"
     bill['link'] = link
-    STDERR.puts("link #{link}")
   end
   agenda_row.css('div.field--name-field-agenda-item-disposition div.field__item').each do |node|
     bill['disposition'] = node.text

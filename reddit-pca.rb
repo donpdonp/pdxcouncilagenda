@@ -95,7 +95,6 @@ if story_ids.empty?
 end
 
 token = access_token()
-puts "Reddit access token #{token}"
 
 if clean
   story_ids.each do |id| 
