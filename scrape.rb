@@ -38,7 +38,7 @@ def parse_bill(agenda_row)
     vote = parts.pop
     { :title => title, :name => parts.join(" "), :vote => vote }
   end
-  STDERR.puts(votes)
+  bill['votes'] = votes
 
   # bill.merge!(:time_certain => item_date)
   # bill.merge!(:link => "https://#{uri.host}/#{citypdf.attributes['href']}") if citypdf
