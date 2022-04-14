@@ -67,7 +67,7 @@ def load_posts
       p['data']['agenda_number'] = match.captures.first if match
     end
   end
-  posts
+  posts.map{|p| p['data']}
 end
 
 @reddit = JSON.parse(File.read("reddit.json"))
@@ -80,26 +80,31 @@ puts "LIVE POST" if do_post
 puts "loading r/pdxcouncilagenda posts"
 posts = load_posts
 puts "loaded #{posts.length} reddit posts"
-story_ids = posts.map{|p|p['data']['agenda_number']}.compact
+story_ids = {}
+posts.each do |p|
+  if p['agenda_number']
+  story_ids[p['agenda_number']] = p
+  end
+end
 
 # agenda
 puts "loading scraped council agenda items"
 agenda = HTTParty.get('http://donp.org/pdxapi/pdx-council-agenda.json').parsed_response
 puts "loaded #{agenda['items'].size} agenda items"
-unposted = agenda['items'].reject{|item| story_ids.include?(item['number'])}
-puts "#{unposted.size} unposted #{unposted.map{|p|p['number']}.sort}"
 
 if story_ids.empty?
   puts "reddit load is empty. aborting early."
   exit
 end
 
-token = access_token()
+unposted = agenda['items'].reject{|item| story_ids.include?(item['number'])}
+puts "#{unposted.size} unposted #{unposted.map{|p|p['number']}.sort}"
 
 if clean
-  story_ids.each do |id| 
-    post = posts.select{|p| p['data']['agenda_number'] == id}.first
-    rid = "#{post['kind']}_#{post['data']['id']}"
+  token = access_token()
+  story_ids.each do |post| 
+    kind = 't3' #always t3
+    rid = "#{kind}_#{post['id']}"
     puts "Deleting agenda #{id} reddit post #{rid}"
     del = api('/api/del', token, {"id" => rid})
     puts del.body
@@ -107,6 +112,7 @@ if clean
 end
 
 if do_post
+  token = access_token()
   unposted.each do |post|
     puts "Posting #{post['number']}"
     add_story(token, post)
