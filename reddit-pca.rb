@@ -70,6 +70,26 @@ def load_posts
   posts.map{|p| p['data']}
 end
 
+def load_comments(post)
+  url = "https://www.reddit.com/r/pdxcouncilagenda/comments/#{post['id']}.json"
+  puts url
+  data = HTTParty.get(url, {
+               :headers => {"User-Agent" => "pdxcitycouncil-scraper"}
+           }).parsed_response
+  if !data.is_a?(Array)
+    puts "reddit error: #{data['message']}"
+  else
+    data.each do |dat|
+      dat['data']['children'].each do |comment|
+        if comment['kind'] == 't1'
+          puts "#{post['id']}: #{comment['data']['body']}"
+        end
+      end
+    end
+  end
+end
+
+
 @reddit = JSON.parse(File.read("reddit.json"))
 clean = ARGV[0] == 'clean' if ARGV[0]
 do_post = ARGV[0] == 'post' if ARGV[0]
@@ -83,13 +103,15 @@ puts "loaded #{posts.length} reddit posts"
 story_ids = {}
 posts.each do |p|
   if p['agenda_number']
-  story_ids[p['agenda_number']] = p
+    story_ids[p['agenda_number']] = p
   end
 end
 
 # agenda
 puts "loading scraped council agenda items"
-agenda = HTTParty.get('http://donp.org/pdxapi/pdx-council-agenda.json').parsed_response
+agenda_json = "https://donp.org/pdxapi/pdx-council-agenda.json"
+puts agenda_json
+agenda = HTTParty.get(agenda_json).parsed_response
 puts "loaded #{agenda['items'].size} agenda items"
 
 if story_ids.empty?
@@ -99,6 +121,12 @@ end
 
 unposted = agenda['items'].reject{|item| story_ids.include?(item['number'])}
 puts "#{unposted.size} unposted #{unposted.map{|p|p['number']}.sort}"
+
+voted = agenda['items'].select{|item| item['votes'].length > 0}
+voted.each do |v|
+  puts "##{v['number']} #{v['votes'].length} votes"
+  load_comments(story_ids[v['number']])
+end
 
 if clean
   token = access_token()
