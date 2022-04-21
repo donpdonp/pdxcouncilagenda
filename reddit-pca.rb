@@ -4,7 +4,6 @@ require "httparty"
 require 'json'
 
 def access_token
-  puts "access_token"
   HTTParty.post('https://ssl.reddit.com/api/v1/access_token',
               {:body => ["grant_type=password",
                          "username=#{@reddit['auth']['username']}",
@@ -23,8 +22,17 @@ end
 
 def make_text(item)
   emergency = item['emergency'] ? "(this item takes effect immediately if passed)" : ""
-  "Session #{item['session']} Item \\##{item['number']}\nBureau: #{item['bureau']}" + "\n\n" +
-  item['title'] + "\n\n" + emergency + "\n\n" + item['link'] + "\n"
+  "Session #{item['session']} " + "|" + "Item \\##{item['number']} " + "|" + "#{item['bureau']}" + "|" + "#{item['disposition']}" + "\n\n"  +
+  item['title'] + "\n\n" + emergency + "\n\n" + 
+  item['link'] + "\n"
+end
+
+def make_vote_comment(item)
+  comment = "Disposition: #{item['disposition']}\n"
+  comment += item['votes'].map do |v|
+    "  * #{v['title']} #{v['name']} #{v['vote']}"
+  end.join("\n")
+  comment
 end
 
 def api(path, token, params)
@@ -36,23 +44,21 @@ def api(path, token, params)
 end
 
 def add_story(token, post)
-  post = api('/api/submit', token,
+  api('/api/submit', token,
                                   {'api_type' => "json",
                                    'kind' => 'self',
                                    'sr' => "pdxcouncilagenda",
                                    'title' => make_title(post),
-                                   'text' => make_text(post)} 
-                       )
+                                   'text' => make_text(post)} ).parsed_response
   #puts "#{post.parsed_response.inspect}"
   #{"json"=>{"errors"=>[], "data"=>{"url"=>"https://oauth.reddit.com/r/pdxcouncilagenda/comments/274cvy/portland_city_council_agenda/", "id"=>"274cvy", "name"=>"t3_274cvy"}}}
 end
 
 def add_comment(token, post, comment)
-  comment = api('/api/comment', token,
+  api('/api/comment', token,
                                   {'api_type' => "json",
                                    'thing_id' => post['name'],
-                                   'text' => comment})
-  puts "add_comment: #{comment.parsed_response.inspect}"
+                                   'text' => comment}).parsed_response
 end
  
 
@@ -124,7 +130,6 @@ end
 # agenda
 puts "loading scraped council agenda items"
 agenda_json = "https://donp.org/pdxapi/pdx-council-agenda.json"
-#agenda_json = "https://donp.org/pdxapi/pdx-council-agenda-votes-oneshot.json"
 puts agenda_json
 agenda = HTTParty.get(agenda_json).parsed_response
 puts "loaded #{agenda['items'].size} agenda items"
@@ -151,25 +156,30 @@ end
 token = access_token()
 if do_post
   unposted.each do |post|
-    puts "Posting #{post['number']}"
-    add_story(token, post)
+    result = add_story(token, post)
+    puts "Posting #{post['number']} #{result}"
   end
 end
 
 voted = agenda['items'].select{|item| item['votes'].length > 0}
 voted.each do |v|
   post = story_ids[v['number']]
-  comments = load_comments(post)
-  puts "##{v['number']} #{v['votes'].length} council votes. #{comments.length} reddit comments."
-  vote_comment = comments.select do |comment|
-    yn = comment['body'].match(/^VOTE/) && comment['author'] == 'pdxapibot'
-    puts "#{post['id']} #{comment['author']} #{comment['body']} #{yn}"
-    yn
-  end
-  if vote_comment.empty?
-    if do_post
-      #add_comment(token, post, "VOTE bot comment")
+  if post 
+    comments = load_comments(post)
+    puts "##{v['number']} #{v['votes'].length} council votes. #{comments.length} reddit comments."
+    vote_comment = comments.select do |comment|
+      yn = comment['body'].match(/^Disposition/) && comment['author'] == 'pdxapibot'
+      puts "#{post['id']} #{comment['author']} #{comment['body']} #{yn}"
+      yn
     end
+    if vote_comment.empty?
+      if do_post
+        result = add_comment(token, post, make_vote_comment(v))
+        puts result
+      end
+    end
+  else
+    puts "Warning: no reddit post for agenda #{v['number']}"
   end
 end
 
