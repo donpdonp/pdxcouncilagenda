@@ -33,12 +33,9 @@ def api(path, token, params)
                                'Authorization' => "bearer #{token}",
                                'User-Agent' => 'pdxcitycouncil-scraper'},
                  :query => params })
-    puts "api success"
-    return
 end
 
 def add_story(token, post)
-  puts "Submitting..."
   post = api('/api/submit', token,
                                   {'api_type' => "json",
                                    'kind' => 'self',
@@ -50,6 +47,14 @@ def add_story(token, post)
   #{"json"=>{"errors"=>[], "data"=>{"url"=>"https://oauth.reddit.com/r/pdxcouncilagenda/comments/274cvy/portland_city_council_agenda/", "id"=>"274cvy", "name"=>"t3_274cvy"}}}
 end
 
+def add_comment(token, post, comment)
+  comment = api('/api/comment', token,
+                                  {'api_type' => "json",
+                                   'thing_id' => post['name'],
+                                   'text' => comment})
+  puts "add_comment: #{comment.parsed_response.inspect}"
+end
+ 
 
 def load_posts
   posts = []
@@ -79,14 +84,23 @@ def load_comments(post)
   if !data.is_a?(Array)
     puts "reddit error: #{data['message']}"
   else
-    data.each do |dat|
-      dat['data']['children'].each do |comment|
-        if comment['kind'] == 't1'
-          puts "#{post['id']}: #{comment['data']['body']}"
-        end
+    data[1]['data']['children'].map do |comment|
+      if comment['kind'] == 't1'
+        comment['data']
       end
     end
   end
+#{"subreddit_id"=>"t5_31utx", "approved_at_utc"=>nil, "author_is_blocked"=>false, "comment_type"=>nil, "awarders"=>[], "mod_reason_by"=>nil, "banned_by"=>nil, "author_fl
+#air_type"=>"text", "total_awards_received"=>0, "subreddit"=>"pdxcouncilagenda", "author_flair_template_id"=>nil, "likes"=>nil, "replies"=>"", "user_reports"=>[], "saved"
+#=>false, "id"=>"i5n3nhp", "banned_at_utc"=>nil, "mod_reason_title"=>nil, "gilded"=>0, "archived"=>false, "collapsed_reason_code"=>nil, "no_follow"=>true, "author"=>"donp
+#donp", "can_mod_post"=>false, "created_utc"=>1650561868.0, "send_replies"=>true, "parent_id"=>"t3_u4bwbn", "score"=>1, "author_fullname"=>"t2_1zlsy", "approved_by"=>nil,
+# "mod_note"=>nil, "all_awardings"=>[], "collapsed"=>false, "body"=>"comment", "edited"=>false, "top_awarded_type"=>nil, "author_flair_css_class"=>nil, "name"=>"t1_i5n3nh
+#p", "is_submitter"=>false, "downs"=>0, "author_flair_richtext"=>[], "author_patreon_flair"=>false, "body_html"=>"&lt;div class=\"md\"&gt;&lt;p&gt;comment&lt;/p&gt;\n&lt;
+#/div&gt;", "removal_reason"=>nil, "collapsed_reason"=>nil, "distinguished"=>nil, "associated_award"=>nil, "stickied"=>false, "author_premium"=>false, "can_gild"=>true, "
+#gildings"=>{}, "unrepliable_reason"=>nil, "author_flair_text_color"=>nil, "score_hidden"=>false, "permalink"=>"/r/pdxcouncilagenda/comments/u4bwbn/accept_the_2021_annual
+#_report_of_the_north_and/i5n3nhp/", "subreddit_type"=>"restricted", "locked"=>false, "report_reasons"=>nil, "created"=>1650561868.0, "author_flair_text"=>nil, "treatment
+#_tags"=>[], "link_id"=>"t3_u4bwbn", "subreddit_name_prefixed"=>"r/pdxcouncilagenda", "controversiality"=>0, "depth"=>0, "author_flair_background_color"=>nil, "collapsed_
+#because_crowd_control"=>nil, "mod_reports"=>[], "num_reports"=>nil, "ups"=>1}
 end
 
 
@@ -110,6 +124,7 @@ end
 # agenda
 puts "loading scraped council agenda items"
 agenda_json = "https://donp.org/pdxapi/pdx-council-agenda.json"
+#agenda_json = "https://donp.org/pdxapi/pdx-council-agenda-votes-oneshot.json"
 puts agenda_json
 agenda = HTTParty.get(agenda_json).parsed_response
 puts "loaded #{agenda['items'].size} agenda items"
@@ -122,12 +137,6 @@ end
 unposted = agenda['items'].reject{|item| story_ids.include?(item['number'])}
 puts "#{unposted.size} unposted #{unposted.map{|p|p['number']}.sort}"
 
-voted = agenda['items'].select{|item| item['votes'].length > 0}
-voted.each do |v|
-  puts "##{v['number']} #{v['votes'].length} votes"
-  load_comments(story_ids[v['number']])
-end
-
 if clean
   token = access_token()
   story_ids.each do |post| 
@@ -139,11 +148,29 @@ if clean
   end
 end
 
+token = access_token()
 if do_post
-  token = access_token()
   unposted.each do |post|
     puts "Posting #{post['number']}"
     add_story(token, post)
   end
 end
+
+voted = agenda['items'].select{|item| item['votes'].length > 0}
+voted.each do |v|
+  post = story_ids[v['number']]
+  comments = load_comments(post)
+  puts "##{v['number']} #{v['votes'].length} council votes. #{comments.length} reddit comments."
+  vote_comment = comments.select do |comment|
+    yn = comment['body'].match(/^VOTE/) && comment['author'] == 'pdxapibot'
+    puts "#{post['id']} #{comment['author']} #{comment['body']} #{yn}"
+    yn
+  end
+  if vote_comment.empty?
+    if do_post
+      #add_comment(token, post, "VOTE bot comment")
+    end
+  end
+end
+
 
