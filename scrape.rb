@@ -12,7 +12,7 @@ STDERR.puts Uri
 def parse_bill(agenda_row)
   bill = {}
   agenda_row.css('h4').each do |id|
-    number = id.text.strip
+    number = id.text.gsub("\n","").gsub(/\s+/,"").strip
     bill['number'] = number
     break
   end

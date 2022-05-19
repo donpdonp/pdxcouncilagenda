@@ -28,10 +28,10 @@ def make_text(item)
 end
 
 def make_vote_comment(item)
-  comment = "Disposition: #{item['disposition']}\n"
+  comment = "Disposition: #{item['disposition']}\n\n"
   comment += item['votes'].map do |v|
     "  * #{v['title']} #{v['name']} #{v['vote']}"
-  end.join("\n")
+  end.join("\n\n")
   comment
 end
 
@@ -74,7 +74,7 @@ def load_posts
   else
     posts = data['data']['children']
     posts.each do |p| 
-      match = p['data']['title'].match(/\[(\d+)\]/)
+      match = p['data']['title'].match(/\[([0-9 -]+)\]/)
       p['data']['agenda_number'] = match.captures.first if match
     end
   end
@@ -127,17 +127,17 @@ posts.each do |p|
   end
 end
 
+if story_ids.empty?
+  puts "reddit posts dont match agenda numbers. aborting early."
+  exit
+end
+
 # agenda
 puts "loading scraped council agenda items"
 agenda_json = "https://donp.org/pdxapi/pdx-council-agenda.json"
 puts agenda_json
 agenda = HTTParty.get(agenda_json).parsed_response
 puts "loaded #{agenda['items'].size} agenda items"
-
-if story_ids.empty?
-  puts "reddit load is empty. aborting early."
-  exit
-end
 
 unposted = agenda['items'].reject{|item| story_ids.include?(item['number'])}
 puts "#{unposted.size} unposted #{unposted.map{|p|p['number']}.sort}"
@@ -175,7 +175,9 @@ voted.each do |v|
     if vote_comment.empty?
       if do_post
         result = add_comment(token, post, make_vote_comment(v))
-        puts result
+        if result['json']['errors'].length > 0
+          puts "add_comment error #{result['json']['errors']}"
+        end
       end
     end
   else
