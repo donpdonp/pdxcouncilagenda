@@ -142,8 +142,14 @@ puts "loaded #{agenda['items'].size} agenda items"
 unposted = agenda['items'].reject{|item| story_ids.include?(item['number'])}
 puts "#{unposted.size} unposted #{unposted.map{|p|p['number']}.sort}"
 
-if clean
+begin
   token = access_token()
+rescue e
+  puts "reddit access token request failed: #{e}"
+  exit
+end
+
+if clean
   story_ids.each do |post| 
     kind = 't3' #always t3
     rid = "#{kind}_#{post['id']}"
@@ -153,7 +159,6 @@ if clean
   end
 end
 
-token = access_token()
 if do_post
   unposted.each do |post|
     result = add_story(token, post)
